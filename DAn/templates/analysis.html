@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Phân tích đánh giá{% endblock %}
+
+{% block content %}
+<h2 class="text-center mb-4">Phân tích cảm xúc đánh giá</h2>
+
+<form method="post" enctype="multipart/form-data" action="/analyze">
+    <div class="mb-3">
+        <input class="form-control" type="file" name="csv_file" accept=".csv" required>
+    </div>
+    <button class="btn btn-success" type="submit">Phân tích</button>
+</form>
+
+{% if result %}
+    <hr>
+    <h4>Kết quả phân tích:</h4>
+    <ul>
+        <li>Tích cực: {{ result.positive }}</li>
+        <li>Tiêu cực: {{ result.negative }}</li>
+        <li>Trung lập: {{ result.neutral }}</li>
+    </ul>
+{% endif %}
+{% endblock %}
