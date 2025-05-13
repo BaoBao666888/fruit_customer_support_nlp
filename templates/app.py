@@ -2,29 +2,29 @@ import os
 from flask import Flask, render_template, request, jsonify, send_file
 import random
 import joblib
-import pandas as pd
-from torch import cosine_similarity
 from transformers import T5Tokenizer, T5ForConditionalGeneration
-from news_scraper.news_loader import load_news
+from news_scraper.news_loader import load_news, get_article_by_id
 from chatbot.search import search_product
 from chatbot.recommender import suggest_product
+import pandas as pd
 from nltk.sentiment import SentimentIntensityAnalyzer
+from sklearn.metrics.pairwise import cosine_similarity
+import numpy as np
 import nltk
-# nltk.download('vader_lexicon')
 import matplotlib.pyplot as plt
+
+nltk.download('vader_lexicon')
 
 app = Flask(__name__)
 
 # === Load mô hình ===
-sentiment_model = joblib.load("./models/emotion_classifier.pkl")
-fruit_model = joblib.load("./models/fruit_model.pkl")  # đảm bảo mô hình đúng version sklearn
+sentiment_model = joblib.load("emotion_classifier.pkl")
+fruit_model = joblib.load("fruit_model.pkl")
 
-# Load mô hình T5 (dùng tokenizer từ mô hình gốc nếu checkpoint không có spiece.model)
-t5_model_path = "./t5_intent_response_model/checkpoint-9000"
+t5_model_path = "t5_intent_response_model/checkpoint-9000"
 t5_tokenizer = T5Tokenizer.from_pretrained("t5-small")
 t5_model = T5ForConditionalGeneration.from_pretrained(t5_model_path)
 
-# === Lưu lịch sử trò chuyện
 chat_history = []
 
 @app.route("/")
@@ -145,33 +145,16 @@ def helpfulness():
 
 @app.route("/news")
 def news():
-    source = request.args.get("source", "nongnghiep")
-    page = int(request.args.get("page", 1))
-    articles = load_news(source=source, page=page)
+    fruit_type = request.args.get("fruit_type")
+    articles = load_news(fruit_type=fruit_type)
+    return render_template("news.html", articles=articles)
 
-    return render_template("news.html", articles=articles, source=source, current_page=page)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-@app.route("/news/api")
-def news_api():
-    source = request.args.get("source", "nongnghiep")
-    page = int(request.args.get("page", 1))
-    articles = load_news(source=source, page=page)
-    return jsonify(articles)
-
+@app.route("/news/<int:article_id>")
+def news_detail(article_id):
+    article = get_article_by_id(article_id)
+    if not article:
+        return "Không tìm thấy bài viết", 404
+    return render_template("news_detail.html", article=article)
 
 if __name__ == "__main__":
     app.run(debug=True)

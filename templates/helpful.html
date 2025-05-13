@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Top đánh giá hữu ích{% endblock %}
+{% block content %}
+<h2 class="text-center mb-4">📌 Top đánh giá hữu ích nhất</h2>
+
+<div class="card p-4 shadow">
+    <ul class="list-group list-group-flush">
+        {% for review in reviews %}
+        <li class="list-group-item">
+            <p><strong>📈 Helpfulness:</strong> {{ review.HelpfulnessRatio }}</p>
+            <p><strong>💬 Nội dung:</strong> {{ review.Text }}</p>
+        </li>
+        {% endfor %}
+    </ul>
+</div>
+{% endblock %}

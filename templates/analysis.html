@@ -2,24 +2,47 @@
 {% block title %}Phân tích đánh giá{% endblock %}
 
 {% block content %}
-<h2 class="text-center mb-4">Phân tích cảm xúc đánh giá</h2>
+<h2 class="text-center mb-4">🧠 Phân tích cảm xúc đánh giá</h2>
 
-<form method="post" enctype="multipart/form-data" action="/analyze" class="card p-4 shadow">
-    <div class="mb-3">
-        <input class="form-control" type="file" name="csv_file" accept=".csv" required>
-    </div>
-    <button class="btn btn-success" type="submit">Phân tích</button>
-</form>
+<div class="card p-4 shadow mb-4">
+    <form method="post" enctype="multipart/form-data" action="/analyze">
+        <div class="mb-3">
+            <label for="csv_file" class="form-label">Tải lên file CSV đánh giá:</label>
+            <input class="form-control" type="file" name="csv_file" id="csv_file" accept=".csv" required>
+        </div>
+        <button class="btn btn-success w-100" type="submit">Phân tích & Sử dụng cho các chức năng khác</button>
+    </form>
+</div>
 
 {% if result %}
-    <hr>
-    <div class="card p-3 mt-4">
-        <h4>Kết quả phân tích:</h4>
-        <ul>
-            <li>😃 Tích cực: {{ result.positive }}</li>
-            <li>😡 Tiêu cực: {{ result.negative }}</li>
-            <li>😐 Trung lập: {{ result.neutral }}</li>
-        </ul>
+<div class="card p-4 shadow mb-4">
+    <h4 class="mb-3">📈 Kết quả phân tích cảm xúc:</h4>
+    <ul class="list-group">
+        <li class="list-group-item">😃 Tích cực: <strong>{{ result.positive }}</strong></li>
+        <li class="list-group-item">😡 Tiêu cực: <strong>{{ result.negative }}</strong></li>
+        <li class="list-group-item">😐 Trung lập: <strong>{{ result.neutral }}</strong></li>
+    </ul>
+</div>
+
+<div class="card p-4 shadow">
+    <h4 class="mb-3">📊 Thống kê & Gợi ý nâng cao</h4>
+
+    <div class="d-grid gap-3">
+        <form method="get" action="/stats" target="_blank">
+            <button class="btn btn-primary" type="submit">Xem biểu đồ thống kê</button>
+        </form>
+
+        <form method="get" action="/helpfulness" target="_blank">
+            <button class="btn btn-info" type="submit">Xem đánh giá hữu ích nhất</button>
+        </form>
+
+        <form method="get" action="" onsubmit="this.action='/recommend/' + document.getElementById('product_id').value" target="_blank">
+            <div class="input-group">
+                <input class="form-control" type="text" id="product_id" name="product_id" placeholder="Nhập Product ID" required>
+                <button class="btn btn-warning" type="submit">Gợi ý sản phẩm</button>
+            </div>
+        </form>
     </div>
+</div>
 {% endif %}
 {% endblock %}

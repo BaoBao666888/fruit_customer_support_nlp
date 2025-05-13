@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Gợi ý sản phẩm{% endblock %}
+{% block content %}
+<h2 class="text-center mb-4">🤝 Gợi ý sản phẩm tương tự</h2>
+
+<div class="card p-4 shadow">
+    <ul class="list-group list-group-flush">
+        {% for item in recommended %}
+        <li class="list-group-item">🔗 {{ item }}</li>
+        {% endfor %}
+    </ul>
+</div>
+{% endblock %}
