@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Tin tức trái cây{% endblock %}
+
+{% block content %}
+<h2 class="text-center mb-4">Tin tức trái cây</h2>
+
+<form method="get" action="/news" class="mb-3">
+    <select class="form-select" name="fruit_type">
+        <option value="">-- Chọn loại trái cây --</option>
+        <option value="vải">Vải</option>
+        <option value="xoài">Xoài</option>
+        <option value="cam">Cam</option>
+        <option value="nho">Nho</option>
+    </select>
+    <button class="btn btn-secondary mt-2" type="submit">Lọc</button>
+</form>
+
+{% for article in articles %}
+    <div class="card mb-3">
+        <div class="card-body">
+            <h5 class="card-title">{{ article.title }}</h5>
+            <p class="card-text">{{ article.summary }}</p>
+            <p class="text-muted"><small>{{ article.date }}</small></p>
+        </div>
+    </div>
+{% endfor %}
+{% endblock %}
