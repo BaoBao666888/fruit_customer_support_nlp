@@ -54,6 +54,12 @@ def get_response(user_input):
     if "giá" in user_input:
         return "(Cảm xúc: {}) Giá cụ thể bạn cần tìm loại nào?".format(sentiment)
 
+    if "tiêu cực" in sentiment:
+        return "(Cảm xúc: {}) Tôi thấy bạn đang không vui, có gì tôi có thể giúp không?".format(sentiment)
+    if "tích cực" in sentiment:
+        return "(Cảm xúc: {}) Tôi rất vui khi bạn hài lòng, có gì tôi có thể giúp không?".format(sentiment)
+    if "trung lập" in sentiment:
+        return "(Cảm xúc: {}) Tôi không rõ cảm xúc của bạn, có gì tôi có thể giúp không?".format(sentiment)
     return "(Cảm xúc: {}) Tôi chưa hiểu rõ câu hỏi, bạn cần giúp gì về trái cây?".format(sentiment)
 
 @app.route("/analyze", methods=["GET", "POST"])
