@@ -4,16 +4,51 @@
 {% block content %}
 <h2 class="text-center mb-4">Chatbot Trái Cây</h2>
 
-<form action="/chat" method="post" class="input-group mb-3">
-    <input type="text" name="user_input" class="form-control" placeholder="Hỏi về trái cây..." required>
-    <button class="btn btn-primary" type="submit">Gửi</button>
-</form>
-
-<div class="border p-3 rounded bg-light">
-    {% for chat in chat_history %}
-        <div><strong>Bạn:</strong> {{ chat.user }}</div>
-        <div><strong>Bot:</strong> {{ chat.bot }}</div>
-        <hr>
-    {% endfor %}
+<div class="input-group mb-3">
+    <input type="text" id="userInput" class="form-control" placeholder="Hỏi về trái cây...">
+    <button class="btn btn-primary" type="button" onclick="sendMessage()">Gửi</button>
 </div>
+
+<div id="chatBox" class="border p-3 rounded bg-light" style="height: 400px; overflow-y: scroll;">
+    <!-- Chat messages sẽ được thêm tại đây -->
+</div>
+
+<script>
+    function appendMessage(sender, text) {
+        const box = document.getElementById("chatBox");
+        const msg = document.createElement("div");
+        msg.innerHTML = "<strong>" + sender + ":</strong> " + text;
+        box.appendChild(msg);
+        box.scrollTop = box.scrollHeight;
+    }
+
+    function sendMessage() {
+        const input = document.getElementById("userInput");
+        const userText = input.value;
+        if (!userText.trim()) return;
+
+        appendMessage("Bạn", userText);
+        input.value = "";
+
+        fetch("/chat_api", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ message: userText })
+        })
+        .then(response => response.json())
+        .then(data => {
+            appendMessage("Bot", data.response);
+        });
+    }
+
+    // Gửi bằng Enter
+    document.getElementById("userInput").addEventListener("keypress", function (e) {
+        if (e.key === "Enter") {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+</script>
 {% endblock %}

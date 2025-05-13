@@ -1,24 +1,60 @@
-from flask import Flask, render_template, request, redirect
 import os
+from flask import Flask, render_template, request, jsonify
+import random
+from news_scraper.news_loader import load_news, get_article_by_id
+from chatbot.search import search_product
+from chatbot.recommender import suggest_product
+from sentiment_analysis.sentiment import predict_sentiment
+
+
 
 app = Flask(__name__)
 
+# === Lưu lịch sử trò chuyện (mất sau mỗi lần chạy lại)
 chat_history = []
 
 @app.route("/")
 def index():
     return render_template("index.html")
 
-@app.route("/chat", methods=["GET", "POST"])
+@app.route("/chatbot")
+def chatbot():
+    return render_template("chatbot.html", chat_history=chat_history)
+
+@app.route("/chat", methods=["POST"])
 def chat():
-    if request.method == "POST":
-        user_input = request.form["user_input"]
-        # Tạm thời: phản hồi đơn giản
-        bot_response = f"Bot trả lời: Bạn hỏi '{user_input}'"
-        chat_history.append({"user": user_input, "bot": bot_response})
-        return redirect("/chat")  # Redirect lại trang chatbot sau khi gửi form
+    user_input = request.form.get("user_input")
+    bot_response = get_response(user_input)
+
+    chat_history.append({
+        "user": user_input,
+        "bot": bot_response
+    })
 
     return render_template("chatbot.html", chat_history=chat_history)
+
+# === API gọi từ giao diện JavaScript không cần reload
+@app.route("/chat_api", methods=["POST"])
+def chat_api():
+    user_input = request.json.get("message", "")
+    bot_response = get_response(user_input)
+    return jsonify({"response": bot_response})
+
+# === Giả lập phản hồi (thay bằng NLP thật)
+def get_response(user_input):
+    sentiment = predict_sentiment(user_input)
+    search_result = search_product(user_input)
+
+    if search_result:
+        return f"(Cảm xúc: {sentiment}) {search_result}"
+    
+    if "gợi ý" in user_input or "nên mua" in user_input:
+        return f"(Cảm xúc: {sentiment}) {suggest_product()}"
+
+    if "giá" in user_input:
+        return "(Cảm xúc: {}) Giá cụ thể bạn cần tìm loại nào?".format(sentiment)
+
+    return "(Cảm xúc: {}) Tôi chưa hiểu rõ câu hỏi, bạn cần giúp gì về trái cây?".format(sentiment)
 
 @app.route("/analyze", methods=["GET", "POST"])
 def analyze():
@@ -36,15 +72,18 @@ def analyze():
         }
     return render_template("analysis.html", result=result)
 
-@app.route("/news", methods=["GET"])
+@app.route("/news")
 def news():
-    fruit = request.args.get("fruit_type")
-    # Tạm thời: tin tức mẫu
-    mock_news = [
-        {"title": f"Tình hình mùa vụ {fruit}", "summary": f"{fruit.capitalize()} đang vào mùa thu hoạch.", "date": "2025-05-12"},
-        {"title": f"Giá {fruit} tăng", "summary": f"Giá {fruit} tăng nhẹ trong tuần qua.", "date": "2025-05-10"},
-    ] if fruit else []
-    return render_template("news.html", articles=mock_news)
+    fruit_type = request.args.get("fruit_type")
+    articles = load_news(fruit_type=fruit_type)
+    return render_template("news.html", articles=articles)
+
+@app.route("/news/<int:article_id>")
+def news_detail(article_id):
+    article = get_article_by_id(article_id)
+    if not article:
+        return "Không tìm thấy bài viết", 404
+    return render_template("news_detail.html", article=article)
 
 if __name__ == "__main__":
     app.run(debug=True)
