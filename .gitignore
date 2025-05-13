@@ -2,5 +2,6 @@
 models/
 __pycache__/
 t5_intent_response_model/
+Reviews.csv
 *.pyc
 *.log
