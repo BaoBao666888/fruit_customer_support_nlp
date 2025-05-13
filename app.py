@@ -1,16 +1,24 @@
 import os
 from flask import Flask, render_template, request, jsonify
 import random
+import joblib
+from transformers import T5Tokenizer, T5ForConditionalGeneration
 from news_scraper.news_loader import load_news, get_article_by_id
 from chatbot.search import search_product
 from chatbot.recommender import suggest_product
-from sentiment_analysis.sentiment import predict_sentiment
-
-
 
 app = Flask(__name__)
 
-# === Lưu lịch sử trò chuyện (mất sau mỗi lần chạy lại)
+# === Load mô hình ===
+sentiment_model = joblib.load("./models/emotion_classifier.pkl")
+fruit_model = joblib.load("./models/fruit_model.pkl")  # đảm bảo mô hình đúng version sklearn
+
+# Load mô hình T5 (dùng tokenizer từ mô hình gốc nếu checkpoint không có spiece.model)
+t5_model_path = "t5_intent_response_model/checkpoint-9000"
+t5_tokenizer = T5Tokenizer.from_pretrained("t5-small")
+t5_model = T5ForConditionalGeneration.from_pretrained(t5_model_path)
+
+# === Lưu lịch sử trò chuyện
 chat_history = []
 
 @app.route("/")
@@ -33,34 +41,34 @@ def chat():
 
     return render_template("chatbot.html", chat_history=chat_history)
 
-# === API gọi từ giao diện JavaScript không cần reload
 @app.route("/chat_api", methods=["POST"])
 def chat_api():
     user_input = request.json.get("message", "")
     bot_response = get_response(user_input)
     return jsonify({"response": bot_response})
 
-# === Giả lập phản hồi (thay bằng NLP thật)
+# === Phân tích cảm xúc sử dụng mô hình ML
+def predict_sentiment(text):
+    return sentiment_model.predict([text])[0]
+
+# === Sinh phản hồi bằng mô hình T5 với ngẫu nhiên hóa
+def generate_t5_response(text):
+    inputs = t5_tokenizer(text, return_tensors="pt", max_length=128, truncation=True)
+    outputs = t5_model.generate(
+        **inputs,
+        do_sample=True,
+        top_k=50,
+        top_p=0.95,
+        temperature=0.9,
+        max_length=100
+    )
+    return t5_tokenizer.decode(outputs[0], skip_special_tokens=True)
+
+# === Tổng hợp phản hồi chatbot
 def get_response(user_input):
     sentiment = predict_sentiment(user_input)
-    search_result = search_product(user_input)
-
-    if search_result:
-        return f"(Cảm xúc: {sentiment}) {search_result}"
-    
-    if "gợi ý" in user_input or "nên mua" in user_input:
-        return f"(Cảm xúc: {sentiment}) {suggest_product()}"
-
-    if "giá" in user_input:
-        return "(Cảm xúc: {}) Giá cụ thể bạn cần tìm loại nào?".format(sentiment)
-
-    if "tiêu cực" in sentiment:
-        return "(Cảm xúc: {}) Tôi thấy bạn đang không vui, có gì tôi có thể giúp không?".format(sentiment)
-    if "tích cực" in sentiment:
-        return "(Cảm xúc: {}) Tôi rất vui khi bạn hài lòng, có gì tôi có thể giúp không?".format(sentiment)
-    if "trung lập" in sentiment:
-        return "(Cảm xúc: {}) Tôi không rõ cảm xúc của bạn, có gì tôi có thể giúp không?".format(sentiment)
-    return "(Cảm xúc: {}) Tôi chưa hiểu rõ câu hỏi, bạn cần giúp gì về trái cây?".format(sentiment)
+    response = generate_t5_response(user_input)
+    return f"(Cảm xúc: {sentiment}) {response}"
 
 @app.route("/analyze", methods=["GET", "POST"])
 def analyze():
@@ -70,7 +78,7 @@ def analyze():
         filepath = os.path.join("uploads", file.filename)
         file.save(filepath)
 
-        # Logic phân tích dữ liệu ở đây (có thể dùng thư viện pandas)
+        # Phân tích dữ liệu CSV nếu cần (tạm thời giả lập)
         result = {
             "positive": 5,
             "negative": 2,

@@ -2,22 +2,22 @@
 {% block title %}Chatbot Trái Cây{% endblock %}
 
 {% block content %}
-<h2 class="text-center mb-4">Chatbot Trái Cây</h2>
+<h2 class="text-center mb-4">Trò chuyện cùng trợ lý trái cây 🍍</h2>
 
-<div class="input-group mb-3">
-    <input type="text" id="userInput" class="form-control" placeholder="Hỏi về trái cây...">
-    <button class="btn btn-primary" type="button" onclick="sendMessage()">Gửi</button>
-</div>
-
-<div id="chatBox" class="border p-3 rounded bg-light" style="height: 400px; overflow-y: scroll;">
-    <!-- Chat messages sẽ được thêm tại đây -->
+<div class="card p-4 shadow">
+    <div id="chatBox" class="border rounded bg-light mb-3 p-3" style="height: 400px; overflow-y: scroll;"></div>
+    <div class="input-group">
+        <input type="text" id="userInput" class="form-control" placeholder="Hỏi về trái cây...">
+        <button class="btn btn-primary" type="button" onclick="sendMessage()">Gửi</button>
+    </div>
 </div>
 
 <script>
     function appendMessage(sender, text) {
         const box = document.getElementById("chatBox");
         const msg = document.createElement("div");
-        msg.innerHTML = "<strong>" + sender + ":</strong> " + text;
+        msg.classList.add("mb-2");
+        msg.innerHTML = `<strong>${sender}:</strong> ${text}`;
         box.appendChild(msg);
         box.scrollTop = box.scrollHeight;
     }
@@ -32,18 +32,13 @@
 
         fetch("/chat_api", {
             method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ message: userText })
         })
-        .then(response => response.json())
-        .then(data => {
-            appendMessage("Bot", data.response);
-        });
+        .then(res => res.json())
+        .then(data => appendMessage("Bot", data.response));
     }
 
-    // Gửi bằng Enter
     document.getElementById("userInput").addEventListener("keypress", function (e) {
         if (e.key === "Enter") {
             e.preventDefault();

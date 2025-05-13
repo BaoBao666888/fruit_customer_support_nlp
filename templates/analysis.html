@@ -4,7 +4,7 @@
 {% block content %}
 <h2 class="text-center mb-4">Phân tích cảm xúc đánh giá</h2>
 
-<form method="post" enctype="multipart/form-data" action="/analyze">
+<form method="post" enctype="multipart/form-data" action="/analyze" class="card p-4 shadow">
     <div class="mb-3">
         <input class="form-control" type="file" name="csv_file" accept=".csv" required>
     </div>
@@ -13,11 +13,13 @@
 
 {% if result %}
     <hr>
-    <h4>Kết quả phân tích:</h4>
-    <ul>
-        <li>Tích cực: {{ result.positive }}</li>
-        <li>Tiêu cực: {{ result.negative }}</li>
-        <li>Trung lập: {{ result.neutral }}</li>
-    </ul>
+    <div class="card p-3 mt-4">
+        <h4>Kết quả phân tích:</h4>
+        <ul>
+            <li>😃 Tích cực: {{ result.positive }}</li>
+            <li>😡 Tiêu cực: {{ result.negative }}</li>
+            <li>😐 Trung lập: {{ result.neutral }}</li>
+        </ul>
+    </div>
 {% endif %}
 {% endblock %}

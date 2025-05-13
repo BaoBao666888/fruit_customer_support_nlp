@@ -1,0 +1,6 @@
+.env
+models/
+__pycache__/
+t5_intent_response_model/
+*.pyc
+*.log
