@@ -3,7 +3,7 @@ from flask import Flask, render_template, request, jsonify
 import random
 import joblib
 from transformers import T5Tokenizer, T5ForConditionalGeneration
-from news_scraper.news_loader import load_news, get_article_by_id
+from news_scraper.news_loader import load_news
 from chatbot.search import search_product
 from chatbot.recommender import suggest_product
 
@@ -14,7 +14,7 @@ sentiment_model = joblib.load("./models/emotion_classifier.pkl")
 fruit_model = joblib.load("./models/fruit_model.pkl")  # đảm bảo mô hình đúng version sklearn
 
 # Load mô hình T5 (dùng tokenizer từ mô hình gốc nếu checkpoint không có spiece.model)
-t5_model_path = "t5_intent_response_model/checkpoint-9000"
+t5_model_path = "./t5_intent_response_model/checkpoint-9000"
 t5_tokenizer = T5Tokenizer.from_pretrained("t5-small")
 t5_model = T5ForConditionalGeneration.from_pretrained(t5_model_path)
 
@@ -88,16 +88,33 @@ def analyze():
 
 @app.route("/news")
 def news():
-    fruit_type = request.args.get("fruit_type")
-    articles = load_news(fruit_type=fruit_type)
-    return render_template("news.html", articles=articles)
+    source = request.args.get("source", "nongnghiep")
+    page = int(request.args.get("page", 1))
+    articles = load_news(source=source, page=page)
 
-@app.route("/news/<int:article_id>")
-def news_detail(article_id):
-    article = get_article_by_id(article_id)
-    if not article:
-        return "Không tìm thấy bài viết", 404
-    return render_template("news_detail.html", article=article)
+    return render_template("news.html", articles=articles, source=source, current_page=page)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+@app.route("/news/api")
+def news_api():
+    source = request.args.get("source", "nongnghiep")
+    page = int(request.args.get("page", 1))
+    articles = load_news(source=source, page=page)
+    return jsonify(articles)
+
 
 if __name__ == "__main__":
     app.run(debug=True)

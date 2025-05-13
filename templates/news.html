@@ -2,31 +2,86 @@
 {% block title %}Tin tức trái cây{% endblock %}
 
 {% block content %}
-<h2 class="text-center mb-4">📰 Tin tức trái cây mới nhất</h2>
-
+<h2 class="text-center mb-4">📰 Tin tức trái cây</h2>
 <form method="get" action="/news" class="mb-4 row g-3 align-items-center">
     <div class="col-auto">
-        <select class="form-select" name="fruit_type">
-            <option value="">-- Chọn loại trái cây --</option>
-            <option value="vải">Vải</option>
-            <option value="xoài">Xoài</option>
-            <option value="cam">Cam</option>
-            <option value="nho">Nho</option>
+        <select class="form-select" name="source">
+            <option value="nongnghiep" {% if source == 'nongnghiep' %}selected{% endif %}>Nông nghiệp</option>
+            <option value="vnexpress" {% if source == 'vnexpress' %}selected{% endif %}>VnExpress</option>
+            <option value="baomoi" {% if source == 'baomoi' %}selected{% endif %}>Báo Mới</option>
         </select>
     </div>
+    <input type="hidden" name="page" value="1">
     <div class="col-auto">
-        <button class="btn btn-secondary" type="submit">Lọc</button>
+        <button class="btn btn-secondary" type="submit">Xem tin</button>
     </div>
 </form>
 
-{% for article in articles %}
-<div class="card mb-4 shadow-sm">
-    <div class="card-body">
-        <h5 class="card-title"><i class="fas fa-lemon"></i> {{ article.title }}</h5>
-        <p class="card-text">{{ article.summary }}</p>
-        <a href="{{ url_for('news_detail', article_id=article.id) }}" class="btn btn-outline-primary btn-sm">Xem thêm</a>
-        <p class="text-muted mt-2"><small><i class="far fa-calendar-alt"></i> {{ article.date }}</small></p>
+<div id="news-container">
+    {% for article in articles %}
+    <div class="card mb-4 shadow-sm news-card">
+        <div class="row g-0">
+            {% if article.image %}
+            <div class="col-md-4">
+                <img src="{{ article.image }}" class="img-fluid rounded-start" alt="{{ article.title }}">
+            </div>
+            {% endif %}
+            <div class="col-md-8">
+                <div class="card-body">
+                    <h5 class="card-title">{{ article.title }}</h5>
+                    <p class="card-text">{{ article.summary }}</p>
+                    <a href="{{ article.url }}" class="btn btn-outline-primary btn-sm" target="_blank">Xem thêm</a>
+                    {% if article.category %}
+                    <p class="text-muted mt-2"><small>📂 {{ article.category }}</small></p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
     </div>
+    {% endfor %}
 </div>
-{% endfor %}
+
+
+<div class="text-center mt-4">
+    <button id="load-more" class="btn btn-outline-secondary">Tải thêm tin</button>
+</div>
+
+<script>
+    let currentPage = "{{current_page}}";
+    const source = "{{ source }}";
+
+    document.getElementById("load-more").addEventListener("click", () => {
+        currentPage++;
+        fetch(`/news/api?source=${source}&page=${currentPage}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.length === 0) {
+                    document.getElementById("load-more").disabled = true;
+                    document.getElementById("load-more").textContent = "Hết tin rồi";
+                    return;
+                }
+
+                const container = document.getElementById("news-container");
+                data.forEach(article => {
+                    const card = document.createElement("div");
+                    card.className = "card mb-4 shadow-sm news-card";
+                    card.innerHTML = `
+                        <div class="row g-0">
+                            ${article.image ? `<div class="col-md-4"><img src="${article.image}" class="img-fluid rounded-start" alt="${article.title}"></div>` : ''}
+                            <div class="col-md-8">
+                                <div class="card-body">
+                                    <h5 class="card-title">${article.title}</h5>
+                                    <p class="card-text">${article.summary}</p>
+                                    <a href="${article.url}" class="btn btn-outline-primary btn-sm" target="_blank">Xem thêm</a>
+                                    ${article.category ? `<p class="text-muted mt-2"><small>📂 ${article.category}</small></p>` : ''}
+                                </div>
+                            </div>
+                        </div>`;
+                    container.appendChild(card);
+                });
+            });
+    });
+</script>
+
+
 {% endblock %}
