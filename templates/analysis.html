@@ -4,8 +4,14 @@
 {% block content %}
 <h2 class="text-center mb-4">🧠 Phân tích cảm xúc đánh giá</h2>
 
+{% if error %}
+<div class="alert alert-danger" role="alert">
+    {{ error }}
+</div>
+{% endif %}
+
 <div class="card p-4 shadow mb-4">
-    <form method="post" enctype="multipart/form-data" action="/analyze">
+    <form method="post" enctype="multipart/form-data" action="{{ url_for('analyze') }}">
         <div class="mb-3">
             <label for="csv_file" class="form-label">Tải lên file CSV đánh giá:</label>
             <input class="form-control" type="file" name="csv_file" id="csv_file" accept=".csv" required>
@@ -18,27 +24,46 @@
 <div class="card p-4 shadow mb-4">
     <h4 class="mb-3">📈 Kết quả phân tích cảm xúc:</h4>
     <ul class="list-group">
-        <li class="list-group-item">😃 Tích cực: <strong>{{ result.positive }}</strong></li>
-        <li class="list-group-item">😡 Tiêu cực: <strong>{{ result.negative }}</strong></li>
-        <li class="list-group-item">😐 Trung lập: <strong>{{ result.neutral }}</strong></li>
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+            <span>😃 Tích cực:</span>
+            <span class="badge bg-success rounded-pill">{{ result.positive }}</span>
+        </li>
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+            <span>😡 Tiêu cực:</span>
+            <span class="badge bg-danger rounded-pill">{{ result.negative }}</span>
+        </li>
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+            <span>😐 Trung lập:</span>
+            <span class="badge bg-secondary rounded-pill">{{ result.neutral }}</span>
+        </li>
     </ul>
 </div>
 
-<div class="card p-4 shadow">
+<div class="card p-4 shadow mb-4"> {/* mb-4 toegevoegd voor consistentie */}
     <h4 class="mb-3">📊 Thống kê & Gợi ý nâng cao</h4>
 
+    {# De grafiek wordt hier direct weergegeven #}
+    <div class="text-center mb-3">
+        <h5>Biểu đồ thống kê Top 10 sản phẩm:</h5>
+        {# Gebruik een timestamp of random getal om caching te voorkomen als de data verandert #}
+        <img src="{{ url_for('stats') }}?t={{ range(1,100000) | random }}" alt="Biểu đồ thống kê" class="img-fluid border rounded shadow-sm">
+    </div>
+
     <div class="d-grid gap-3">
-        <form method="get" action="/stats" target="_blank">
-            <button class="btn btn-primary" type="submit">Xem biểu đồ thống kê</button>
+        {# De knop om de grafiek te bekijken is niet meer nodig als deze direct wordt weergegeven #}
+        {# Je kunt hem verwijderen of een andere functie geven #}
+        {# <form method="get" action="{{ url_for('stats') }}" target="_blank">
+            <button class="btn btn-primary w-100" type="submit">Xem biểu đồ thống kê (Trang mới)</button>
+        </form> #}
+
+        <form method="get" action="{{ url_for('helpfulness') }}" target="_blank">
+            <button class="btn btn-info w-100" type="submit">Xem đánh giá hữu ích nhất</button>
         </form>
 
-        <form method="get" action="/helpfulness" target="_blank">
-            <button class="btn btn-info" type="submit">Xem đánh giá hữu ích nhất</button>
-        </form>
-
-        <form method="get" action="" onsubmit="this.action='/recommend/' + document.getElementById('product_id').value" target="_blank">
+        {# HIER IS DE WIJZIGING #}
+        <form method="get" action="#" onsubmit="this.action='{{ url_for('recommend', product_id='DUMMY') }}'.replace('DUMMY', document.getElementById('product_id').value); this.target='_blank'; return true;">
             <div class="input-group">
-                <input class="form-control" type="text" id="product_id" name="product_id" placeholder="Nhập Product ID" required>
+                <input class="form-control" type="text" id="product_id" name="product_id_display" placeholder="Nhập Product ID" required> {# name veranderd om conflict te voorkomen #}
                 <button class="btn btn-warning" type="submit">Gợi ý sản phẩm</button>
             </div>
         </form>
