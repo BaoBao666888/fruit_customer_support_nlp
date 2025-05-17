@@ -1,6 +1,6 @@
 from bs4 import BeautifulSoup
 import requests
-import urllib.parse # Voeg deze import toe
+import urllib.parse
 
 def scrape_nongnghiep(page=1):
     base_url = "https://nongsanviet.nongnghiep.vn/trái+cây-search/from-to-sign-/"
@@ -11,16 +11,17 @@ def scrape_nongnghiep(page=1):
     }
     try:
         response = requests.get(url, headers=headers, timeout=10)
-        # Het is ongebruikelijk, maar als 202 de success code is voor deze site, is het ok.
-        # Meestal is het 200. Controleer dit.
-        if response.status_code != 200 and response.status_code != 202: # 200 is gebruikelijker
-            print(f"Failed to fetch nongnghiep page {page}, status: {response.status_code}")
+        # response.status_code == 202 có vẻ là đặc trưng của trang này, bình thường là 200
+        if response.status_code != 200 and response.status_code != 202:
+            print(f"Không thể tải trang nongnghiep {page}, mã trạng thái: {response.status_code}")
             return []
-        response.raise_for_status() # Gooit een error voor 4xx/5xx codes
+        response.raise_for_status() # Báo lỗi cho các mã 4xx/5xx
     except requests.exceptions.RequestException as e:
-        print(f"Request error for nongnghiep page {page}: {e}")
+        print(f"Lỗi request cho trang nongnghiep {page}: {e}")
         return []
-
+    except Exception as e:
+        print(f"Lỗi không xác định khi tải trang nongnghiep {page}: {e}")
+        return []
 
     soup = BeautifulSoup(response.text, "html.parser")
     items = soup.select("div.container_left div.list-news-home div.news-home-item")
@@ -35,22 +36,19 @@ def scrape_nongnghiep(page=1):
         if not title_tag:
             continue
         
-        # Zorg ervoor dat URL's compleet zijn
         article_url = title_tag.get("href", "")
         if article_url and not article_url.startswith(('http://', 'https://')):
-            # Pas dit aan als de basis URL voor artikelen anders is
             base_domain = "https://nongsanviet.nongnghiep.vn" 
             article_url = requests.compat.urljoin(base_domain, article_url)
 
         image_src = img_tag.get("src") if img_tag else ""
         if image_src and not image_src.startswith(('http://', 'https://')):
-            base_domain = "https://nongsanviet.nongnghiep.vn" # Pas dit aan indien nodig
+            base_domain = "https://nongsanviet.nongnghiep.vn"
             image_src = requests.compat.urljoin(base_domain, image_src)
 
-
         article = {
-            "title": title_tag.get("title", "").strip(),
-            "summary": summary_tag.text.strip() if summary_tag else "",
+            "title": title_tag.get("title", "Không có tiêu đề").strip(),
+            "summary": summary_tag.text.strip() if summary_tag else "Không có tóm tắt.",
             "url": article_url,
             "category": category_tag.text.strip() if category_tag else "",
             "image": image_src
@@ -58,93 +56,103 @@ def scrape_nongnghiep(page=1):
         results.append(article)
     return results
 
-
 def scrape_vnexpress(page=1):
     query = "trái cây"
     base_url = "https://timkiem.vnexpress.net"
-    encoded_query = urllib.parse.quote(query)
+    encoded_query = urllib.parse.quote(query) # Mã hóa query cho URL
     url = f"{base_url}/?q={encoded_query}" if page == 1 else f"{base_url}?q={encoded_query}&page={page}"
 
-    headers = {"User-Agent": "Mozilla/5.0"}
+    headers = {"User-Agent": "Mozilla/5.0"} # User agent đơn giản
     try:
         response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()
     except requests.exceptions.RequestException as e:
-        print(f"Request error for VnExpress page {page}: {e}")
+        print(f"Lỗi request cho trang VnExpress {page}: {e}")
+        return []
+    except Exception as e:
+        print(f"Lỗi không xác định khi tải trang VnExpress {page}: {e}")
         return []
 
     soup = BeautifulSoup(response.text, "html.parser")
+    # Selector có thể cần cập nhật nếu cấu trúc VnExpress thay đổi
     items = soup.select("div.width_common.list-news-subfolder article.item-news")
-    # Alternatieve selector als de bovenstaande niet werkt:
-    # items = soup.select("#result_search article.item_news") 
+    if not items: # Thử selector khác nếu không tìm thấy
+        items = soup.select("#result_search article.item_news")
+
 
     results = []
     for item in items:
         title_tag = item.select_one("h3.title-news a")
-        summary_tag = item.select_one("p.description a")
-        # picture_tag = item.select_one("picture source") # data-srcset is betrouwbaarder
+        summary_tag = item.select_one("p.description a") # VnExpress thường có link trong summary
+        
         thumb_art_div = item.select_one("div.thumb-art")
-        img_tag_in_thumb = thumb_art_div.select_one("img") if thumb_art_div else None
+        img_tag_in_thumb = thumb_art_div.select_one("picture source[data-srcset], picture img[data-src], img[data-src], img[src]") if thumb_art_div else None
 
         image_url = ""
-        if img_tag_in_thumb and img_tag_in_thumb.has_attr("data-src"):
-            image_url = img_tag_in_thumb["data-src"]
-        elif img_tag_in_thumb and img_tag_in_thumb.has_attr("src"): # fallback
-             image_url = img_tag_in_thumb["src"]
-        # Oude logica voor picture tag, kan als fallback dienen
-        # if not image_url:
-        #     picture_tag = item.select_one("picture source[data-srcset]")
-        #     if picture_tag:
-        #         srcset = picture_tag["data-srcset"]
-        #         image_url = srcset.split(",")[0].split()[0]
-
-        if not title_tag or not summary_tag:
+        if img_tag_in_thumb:
+            if img_tag_in_thumb.has_attr("data-srcset"):
+                image_url = img_tag_in_thumb["data-srcset"].split(" ")[0] # Lấy URL đầu tiên từ srcset
+            elif img_tag_in_thumb.has_attr("data-src"):
+                image_url = img_tag_in_thumb["data-src"]
+            elif img_tag_in_thumb.has_attr("src"):
+                image_url = img_tag_in_thumb["src"]
+        
+        if not title_tag: # Bài viết phải có tiêu đề
             continue
         
-        article_url = title_tag.get("href")
+        article_url = title_tag.get("href", "")
+        # Đảm bảo URL là tuyệt đối
         if article_url and not article_url.startswith(('http://', 'https://')):
-            # VnExpress links zijn meestal al absoluut, maar voor de zekerheid
-            if "vnexpress.net" not in article_url: # Voorkom dubbele domeinen
-                 article_url = requests.compat.urljoin("https://vnexpress.net", article_url)
+            # VnExpress thường trả về URL tuyệt đối, nhưng kiểm tra cho chắc
+             article_url = requests.compat.urljoin("https://vnexpress.net", article_url)
 
 
         results.append({
-            "title": title_tag.text.strip(),
-            "summary": summary_tag.text.strip(),
+            "title": title_tag.text.strip() if title_tag else "Không có tiêu đề",
+            "summary": summary_tag.text.strip() if summary_tag else "Không có tóm tắt.",
             "url": article_url,
             "image": image_url
+            # VnExpress không có category rõ ràng trong trang tìm kiếm
         })
     return results
 
-
 def scrape_baomoi(page=1):
-    print("scrape_baomoi is nog niet geïmplementeerd.")
-    return [] # Retourneer een lege lijst om fouten te voorkomen
+    # Chức năng này chưa được triển khai
+    print(f"Chức năng cào dữ liệu từ Báo Mới (trang {page}) chưa được cài đặt.")
+    return [] # Luôn trả về danh sách rỗng để tránh lỗi
 
 def load_news(source="nongnghiep", page=1):
+    print(f"Đang tải tin từ nguồn: {source}, trang: {page}")
     if source == "vnexpress":
         return scrape_vnexpress(page)
     elif source == "baomoi":
         return scrape_baomoi(page)
-    else: # Default naar nongnghiep
-        return scrape_nongnghiep(page)
+    # Mặc định hoặc nếu source là 'nongnghiep'
+    return scrape_nongnghiep(page)
 
-# Voor testen:
+# Ví dụ để kiểm tra scraper (bỏ chú thích nếu muốn chạy riêng file này)
 # if __name__ == "__main__":
-#     print("Testing nongnghiep:")
+#     print("--- Kiểm tra Nông Nghiệp ---")
 #     news_nn = scrape_nongnghiep(1)
-#     for a in news_nn[:2]: # Print eerste 2
-#         print(f"  Title: {a['title']}")
-#         print(f"  URL: {a['url']}")
-#         print(f"  Image: {a['image']}\n")
+#     if news_nn:
+#         for i, article in enumerate(news_nn[:2]): # In 2 bài đầu tiên
+#             print(f"Bài {i+1}: {article['title']}")
+#             print(f"  URL: {article['url']}")
+#             print(f"  Ảnh: {article['image']}")
+#     else:
+#         print("Không lấy được tin từ Nông Nghiệp.")
 
-#     print("\nTesting vnexpress:")
+#     print("\n--- Kiểm tra VnExpress ---")
 #     news_vn = scrape_vnexpress(1)
-#     for a in news_vn[:2]: # Print eerste 2
-#         print(f"  Title: {a['title']}")
-#         print(f"  URL: {a['url']}")
-#         print(f"  Image: {a['image']}\n")
+#     if news_vn:
+#         for i, article in enumerate(news_vn[:2]):
+#             print(f"Bài {i+1}: {article['title']}")
+#             print(f"  URL: {article['url']}")
+#             print(f"  Ảnh: {article['image']}")
+#     else:
+#         print("Không lấy được tin từ VnExpress.")
 
-#     print("\nTesting baomoi:")
-#     news_bm = scrape_baomoi(1) # Zou lege lijst moeten printen
-#     print(news_bm)
+#     print("\n--- Kiểm tra Báo Mới ---")
+#     news_bm = scrape_baomoi(1) # Sẽ in thông báo chưa triển khai và trả về []
+#     if not news_bm:
+#         print("Đúng như dự kiến, Báo Mới chưa có dữ liệu.")

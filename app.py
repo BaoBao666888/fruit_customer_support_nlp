@@ -1,56 +1,77 @@
 import os
-from flask import Flask, render_template, request, jsonify, send_file, url_for # Added url_for
+from flask import Flask, render_template, request, jsonify, send_file, url_for
 import random
 import joblib
 import pandas as pd
-# from torch import cosine_similarity # <<< VERWIJDER DEZE
-from sklearn.metrics.pairwise import cosine_similarity # <<< VOEG DEZE TOE
+from sklearn.metrics.pairwise import cosine_similarity
 from transformers import T5Tokenizer, T5ForConditionalGeneration
-from news_scraper.news_loader import load_news
-# from chatbot.search import search_product # Niet gebruikt?
-# from chatbot.recommender import suggest_product # Niet gebruikt?
+from news_scraper.news_loader import load_news # Đã sửa tên thư mục
 from nltk.sentiment import SentimentIntensityAnalyzer
 import nltk
 import matplotlib
-matplotlib.use('Agg') # Belangrijk voor servers zonder GUI
+matplotlib.use('Agg') # Quan trọng cho server không có GUI
 import matplotlib.pyplot as plt
-import io # Voor in-memory image
+import io # Cho hình ảnh trong bộ nhớ
 
-# Probeer VADER lexicon te downloaden als het niet bestaat.
+# Thử tải lexicon VADER nếu chưa có.
 try:
     nltk.data.find('sentiment/vader_lexicon.zip')
 except nltk.downloader.DownloadError:
-    print("VADER lexicon niet gevonden. Aan het downloaden...")
+    print("Lexicon VADER không tìm thấy. Đang tải xuống...")
     nltk.download('vader_lexicon')
-except Exception as e: # Andere mogelijke NLTK-gerelateerde fouten afvangen
-    print(f"Fout bij controleren/downloaden VADER lexicon: {e}")
-
+except Exception as e: # Bắt các lỗi khác liên quan đến NLTK
+    print(f"Lỗi khi kiểm tra/tải lexicon VADER: {e}")
 
 app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = 'uploads' # Definieer upload map
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True) # Maak map als deze niet bestaat
+app.config['UPLOAD_FOLDER'] = 'uploads' # Định nghĩa thư mục upload
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True) # Tạo thư mục nếu chưa có
 
-# === Load mô hình ===
-# Zorg ervoor dat deze modellen bestaan op de opgegeven paden
+# === Tải mô hình ===
+# Đảm bảo các mô hình này tồn tại ở đường dẫn được chỉ định
 try:
     sentiment_model = joblib.load("./models/emotion_classifier.pkl")
-    # fruit_model = joblib.load("./models/fruit_model.pkl") # Lijkt niet gebruikt te worden
+    # fruit_model = joblib.load("./models/fruit_model.pkl") # Tải mô hình dinh dưỡng
 except FileNotFoundError as e:
-    print(f"Fout bij laden model: {e}. Zorg ervoor dat de modellen aanwezig zijn.")
-    sentiment_model = None # of exit()
+    print(f"Lỗi khi tải mô hình: {e}. Đảm bảo các file mô hình đã tồn tại.")
+    sentiment_model = None
+    # fruit_model = None
+except Exception as e: # Bắt các lỗi chung khác khi tải mô hình
+    print(f"Lỗi không xác định khi tải mô hình: {e}")
+    sentiment_model = None
+    # fruit_model = None
 
-# Load mô hình T5
+
+# Tải mô hình T5
 t5_model_path = "./t5_intent_response_model/checkpoint-9000"
 try:
-    t5_tokenizer = T5Tokenizer.from_pretrained("t5-small") # Of T5Tokenizer.from_pretrained(t5_model_path) als tokenizer bestanden daar zijn
+    # Nếu tokenizer của được lưu cùng checkpoint, hãy dùng:
+    # t5_tokenizer = T5Tokenizer.from_pretrained(t5_model_path)
+    t5_tokenizer = T5Tokenizer.from_pretrained("t5-small")
     t5_model = T5ForConditionalGeneration.from_pretrained(t5_model_path)
 except OSError as e:
-    print(f"Fout bij laden T5 model: {e}. Controleer het pad en de bestanden.")
+    print(f"Lỗi khi tải mô hình T5: {e}. Kiểm tra đường dẫn và các file.")
+    t5_model = None
+    t5_tokenizer = None
+except Exception as e: # Bắt các lỗi chung khác khi tải mô hình T5
+    print(f"Lỗi không xác định khi tải mô hình T5: {e}")
     t5_model = None
     t5_tokenizer = None
 
+# === Dữ liệu dinh dưỡng (ví dụ, nếu fruit_model cần nó ở dạng DataFrame) ===
+# Ghi chú: Cách fruit_model sử dụng dữ liệu này phụ thuộc vào cách nó được huấn luyện.
+# Đây chỉ là ví dụ cách tải dữ liệu.
+# fruit_nutrition_df = None
+# try:
+#     # Giả sử có file CSV chứa dữ liệu dinh dưỡng mà fruit_model sử dụng
+#     fruit_nutrition_df = pd.read_csv("./datasets/expanded_fruit_dataset.csv")
+#     # Có thể cần tiền xử lý fruit_nutrition_df ở đây
+# except FileNotFoundError:
+#     print("Không tìm thấy file expanded_fruit_dataset.csv. Chức năng dinh dưỡng có thể bị hạn chế.")
+# except Exception as e:
+#     print(f"Lỗi khi tải expanded_fruit_dataset.csv: {e}")
 
-# === Lưu lịch sử trò chuyện
+
+# === Lưu lịch sử trò chuyện ===
 chat_history = []
 
 @app.route("/")
@@ -65,7 +86,7 @@ def chatbot():
 def chat():
     user_input = request.form.get("user_input")
     if not user_input:
-        return render_template("chatbot.html", chat_history=chat_history, error="Voer een bericht in.")
+        return render_template("chatbot.html", chat_history=chat_history, error="Vui lòng nhập tin nhắn.")
 
     bot_response = get_response(user_input)
 
@@ -73,7 +94,7 @@ def chat():
         "user": user_input,
         "bot": bot_response
     })
-    # Zorg ervoor dat chat_history niet te groot wordt (optioneel)
+    # Giới hạn lịch sử chat (tùy chọn)
     # if len(chat_history) > 50: chat_history.pop(0)
 
     return render_template("chatbot.html", chat_history=chat_history)
@@ -82,15 +103,19 @@ def chat():
 def chat_api():
     user_input = request.json.get("message", "")
     if not user_input:
-        return jsonify({"response": "Stel alstublieft een vraag."})
+        return jsonify({"response": "Vui lòng đặt câu hỏi."})
     bot_response = get_response(user_input)
     return jsonify({"response": bot_response})
 
-# === Functions ===
+# === Các hàm chức năng ===
 def predict_sentiment(text):
     if sentiment_model:
-        return sentiment_model.predict([text])[0]
-    return "Sentiment model niet geladen"
+        try:
+            return sentiment_model.predict([text])[0]
+        except Exception as e:
+            print(f"Lỗi khi dự đoán cảm xúc: {e}")
+            return "không xác định"
+    return "Mô hình cảm xúc chưa được tải"
 
 def generate_t5_response(text):
     if t5_model and t5_tokenizer:
@@ -106,14 +131,51 @@ def generate_t5_response(text):
             )
             return t5_tokenizer.decode(outputs[0], skip_special_tokens=True)
         except Exception as e:
-            print(f"Fout tijdens T5 generatie: {e}")
-            return "Sorry, ik kon geen antwoord genereren."
-    return "T5 model niet geladen."
+            print(f"Lỗi trong quá trình sinh phản hồi T5: {e}")
+            return "Xin lỗi, tôi không thể tạo phản hồi lúc này."
+    return "Mô hình T5 chưa được tải."
+
+# === Ghi chú về tích hợp fruit_model ===
+# Để sử dụng fruit_model, cần định nghĩa cách nó xử lý câu hỏi.
+# Ví dụ, nếu fruit_model có hàm `get_nutrition_info(fruit_name_hoac_cau_hoi)`
+# def get_nutrition_from_model(user_input):
+#     if fruit_model and fruit_nutrition_df is not None:
+#         try:
+#             # Logic để xác định xem user_input có phải là câu hỏi về dinh dưỡng không
+#             # và trích xuất tên trái cây nếu cần.
+#             # Ví dụ đơn giản:
+#             possible_fruit_name = user_input.lower() # Cần xử lý tinh vi hơn
+#             if any(fruit_name in possible_fruit_name for fruit_name in fruit_nutrition_df['name'].str.lower()):
+#                 # Đây là nơi sẽ gọi logic của fruit_model
+#                 # Ví dụ: nutrition_info = fruit_model.query(user_input, fruit_nutrition_df)
+#                 # return nutrition_info
+#                 # Tạm thời trả về thông tin từ DataFrame cho mục đích demo
+#                 for index, row in fruit_nutrition_df.iterrows():
+#                     if row['name'].lower().split(" ")[0] in possible_fruit_name: # tìm từ đầu tiên của tên
+#                         return f"Thông tin dinh dưỡng cho {row['name']}: {row['energy (kcal/kJ)']} kcal, {row['sugars (g)']}g đường."
+#                 return "Tôi tìm thấy thông tin liên quan đến dinh dưỡng nhưng chưa rõ cụ thể."
+#         except Exception as e:
+#             print(f"Lỗi khi truy vấn fruit_model: {e}")
+#             return "Tôi gặp sự cố khi tra cứu thông tin dinh dưỡng."
+#     return None # Không có thông tin dinh dưỡng hoặc mô hình chưa sẵn sàng
 
 def get_response(user_input):
     sentiment = predict_sentiment(user_input)
-    response = generate_t5_response(user_input)
-    return f"(Cảm xúc: {sentiment}) {response}"
+    
+    # === PHẦN TÍCH HỢP FRUIT_MODEL (ĐANG ĐƯỢC CHÚ THÍCH) ===
+    # nutrition_response = get_nutrition_from_model(user_input)
+    # if nutrition_response:
+    #     # Nếu có phản hồi dinh dưỡng, có thể ưu tiên nó
+    #     # hoặc kết hợp nó với phản hồi T5.
+    #     # Ví dụ: return f"(Cảm xúc: {sentiment}) {nutrition_response}"
+    #     # Hoặc:
+    #     # t5_response_text = generate_t5_response(user_input)
+    #     # return f"(Cảm xúc: {sentiment}) {nutrition_response} Ngoài ra, {t5_response_text}"
+    #     pass # Hiện tại bỏ qua để dùng T5 mặc định
+
+    # Mặc định sử dụng T5 nếu không có phản hồi chuyên biệt từ fruit_model
+    t5_response = generate_t5_response(user_input)
+    return f"(Cảm xúc: {sentiment}) {t5_response}"
 
 @app.route("/analyze", methods=["GET", "POST"])
 def analyze():
@@ -121,7 +183,7 @@ def analyze():
     error_message = None
     if request.method == "POST":
         if 'csv_file' not in request.files or not request.files['csv_file'].filename:
-            error_message = "Geen bestand geselecteerd."
+            error_message = "Không có file nào được chọn."
             return render_template("analysis.html", result=result, error=error_message)
 
         file = request.files["csv_file"]
@@ -132,14 +194,14 @@ def analyze():
             try:
                 df = pd.read_csv(filepath, nrows=5000)
                 if 'Text' not in df.columns:
-                    error_message = "CSV bestand moet een 'Text' kolom bevatten."
+                    error_message = "File CSV phải có cột 'Text'."
                     return render_template("analysis.html", result=result, error=error_message)
 
                 analyzer = SentimentIntensityAnalyzer()
                 positive, negative, neutral = 0, 0, 0
 
-                # Gebruik .get() met een default lege string om KeyError te voorkomen als een review None of NaN is
                 for review in df['Text']:
+                    # Đảm bảo review là string và xử lý giá trị NaN/None
                     score = analyzer.polarity_scores(str(review if pd.notna(review) else ""))['compound']
                     if score > 0.05:
                         positive += 1
@@ -149,16 +211,13 @@ def analyze():
                         neutral += 1
                 result = {"positive": positive, "negative": negative, "neutral": neutral}
 
-                # Genereer de grafiek direct na de analyse zodat deze beschikbaar is
-                # generate_stats_chart(df) # Optioneel als je het op schijf wilt opslaan
-
             except pd.errors.EmptyDataError:
-                error_message = "Het geüploade CSV bestand is leeg."
+                error_message = "File CSV được tải lên bị trống."
             except Exception as e:
-                error_message = f"Fout bij verwerken CSV: {e}"
-                print(f"Fout bij verwerken CSV: {e}")
+                error_message = f"Lỗi khi xử lý CSV: {e}"
+                print(f"Lỗi khi xử lý CSV: {e}")
         else:
-            error_message = "Ongeldig bestandsformaat. Upload alstublieft een CSV bestand."
+            error_message = "Định dạng file không hợp lệ. Vui lòng tải lên file CSV."
 
     return render_template("analysis.html", result=result, error=error_message)
 
@@ -167,95 +226,93 @@ def analyze():
 def stats():
     filepath = os.path.join(app.config['UPLOAD_FOLDER'], "latest.csv")
     if not os.path.exists(filepath):
-        # Je kunt een placeholder afbeelding terugsturen of een 404
-        return "Statistiekenbestand nog niet gegenereerd. Upload eerst een CSV.", 404
+        return "File thống kê chưa được tạo. Vui lòng tải lên file CSV trước.", 404
 
     try:
         df = pd.read_csv(filepath, nrows=5000)
         if 'ProductId' not in df.columns:
-             # Stuur een lege afbeelding of foutmelding
-            return "ProductId kolom niet gevonden in CSV voor statistieken.", 400
+            return "Không tìm thấy cột 'ProductId' trong CSV để tạo thống kê.", 400
 
         top_products = df['ProductId'].value_counts().head(10)
 
-        fig, ax = plt.subplots(figsize=(10, 6)) # Gebruik fig, ax
+        fig, ax = plt.subplots(figsize=(10, 6))
         top_products.plot(kind='bar', color='skyblue', ax=ax)
-        ax.set_xlabel('Product ID')
+        ax.set_xlabel('Mã Sản Phẩm')
         ax.set_ylabel('Số lượng đánh giá')
         ax.set_title('Top 10 sản phẩm được đánh giá nhiều nhất')
         plt.tight_layout()
 
         img_io = io.BytesIO()
-        fig.savefig(img_io, format='png') # Sla figuur op
+        fig.savefig(img_io, format='png')
         img_io.seek(0)
-        plt.close(fig) # Sluit de figuur
+        plt.close(fig) # Đóng biểu đồ để giải phóng bộ nhớ
 
         return send_file(img_io, mimetype='image/png')
     except Exception as e:
-        print(f"Fout bij genereren statistieken: {e}")
-        # Stuur eventueel een foutafbeelding of tekst
-        return f"Fout bij genereren statistieken: {e}", 500
+        print(f"Lỗi khi tạo biểu đồ thống kê: {e}")
+        return f"Lỗi khi tạo biểu đồ thống kê: {e}", 500
 
 
 @app.route("/recommend/<product_id>")
 def recommend(product_id):
     filepath = os.path.join(app.config['UPLOAD_FOLDER'], "latest.csv")
     if not os.path.exists(filepath):
-        return render_template("recommend.html", recommended=[], error="Analyseer eerst een CSV bestand.")
+        return render_template("recommend.html", recommended=[], error="Vui lòng phân tích file CSV trước.")
 
     try:
         df = pd.read_csv(filepath, nrows=5000)
-        if not all(col in df.columns for col in ['UserId', 'ProductId', 'Score']):
-            return render_template("recommend.html", recommended=[], error="CSV mist benodigde kolommen (UserId, ProductId, Score).")
+        required_cols = ['UserId', 'ProductId', 'Score']
+        if not all(col in df.columns for col in required_cols):
+            return render_template("recommend.html", recommended=[], error=f"CSV thiếu các cột cần thiết: {', '.join(required_cols)}.")
 
         user_product_matrix = df.pivot_table(index='UserId', columns='ProductId', values='Score').fillna(0)
 
         if product_id not in user_product_matrix.columns:
-            return render_template("recommend.html", recommended=[], error=f"Product ID '{product_id}' niet gevonden in de data.")
+            return render_template("recommend.html", recommended=[], error=f"Mã sản phẩm '{product_id}' không tìm thấy trong dữ liệu.")
 
-        # Zorg ervoor dat de matrix niet leeg is na pivot
-        if user_product_matrix.empty or user_product_matrix.shape[1] < 2: # Minimaal 2 items nodig voor similariteit
-             return render_template("recommend.html", recommended=[], error="Niet genoeg data om aanbevelingen te doen.")
-
+        if user_product_matrix.empty or user_product_matrix.shape[1] < 2:
+             return render_template("recommend.html", recommended=[], error="Không đủ dữ liệu để đưa ra gợi ý.")
 
         item_similarity = cosine_similarity(user_product_matrix.T)
         item_similarity_df = pd.DataFrame(item_similarity, index=user_product_matrix.columns, columns=user_product_matrix.columns)
 
+        # Lấy top 5 sản phẩm tương tự, loại bỏ chính sản phẩm đó (sản phẩm đầu tiên sau khi sort)
         recommendations = item_similarity_df[product_id].sort_values(ascending=False)[1:6].index.tolist()
         return render_template("recommend.html", recommended=recommendations)
     except Exception as e:
-        print(f"Fout bij aanbevelen: {e}")
-        return render_template("recommend.html", recommended=[], error=f"Fout bij genereren aanbevelingen: {e}")
+        print(f"Lỗi khi gợi ý sản phẩm: {e}")
+        return render_template("recommend.html", recommended=[], error=f"Lỗi khi tạo gợi ý: {e}")
 
 
 @app.route("/helpfulness")
 def helpfulness():
     filepath = os.path.join(app.config['UPLOAD_FOLDER'], "latest.csv")
     if not os.path.exists(filepath):
-        return render_template("helpful.html", reviews=[], error="Analyseer eerst een CSV bestand.")
+        return render_template("helpful.html", reviews=[], error="Vui lòng phân tích file CSV trước.")
 
     try:
         df = pd.read_csv(filepath, nrows=5000)
-        if not all(col in df.columns for col in ['HelpfulnessNumerator', 'HelpfulnessDenominator', 'Text']):
-            return render_template("helpful.html", reviews=[], error="CSV mist benodigde kolommen (HelpfulnessNumerator, HelpfulnessDenominator, Text).")
+        required_cols = ['HelpfulnessNumerator', 'HelpfulnessDenominator', 'Text']
+        if not all(col in df.columns for col in required_cols):
+            return render_template("helpful.html", reviews=[], error=f"CSV thiếu các cột cần thiết: {', '.join(required_cols)}.")
 
         df['HelpfulnessRatio'] = df.apply(
-            lambda x: x['HelpfulnessNumerator'] / x['HelpfulnessDenominator'] if x['HelpfulnessDenominator'] != 0 else 0,
+            lambda x: (x['HelpfulnessNumerator'] / x['HelpfulnessDenominator']) if x['HelpfulnessDenominator'] != 0 else 0,
             axis=1
         )
         most_helpful_reviews = df.sort_values(by='HelpfulnessRatio', ascending=False).head(10)
-        helpful_reviews = most_helpful_reviews[['Text', 'HelpfulnessRatio']].to_dict(orient='records')
-        return render_template("helpful.html", reviews=helpful_reviews)
+        helpful_reviews_list = most_helpful_reviews[['Text', 'HelpfulnessRatio']].to_dict(orient='records') # Đổi tên biến
+        return render_template("helpful.html", reviews=helpful_reviews_list) # Truyền biến đã đổi tên
     except Exception as e:
-        print(f"Fout bij helpfulness: {e}")
-        return render_template("helpful.html", reviews=[], error=f"Fout bij ophalen helpful reviews: {e}")
+        print(f"Lỗi ở chức năng helpfulness: {e}")
+        return render_template("helpful.html", reviews=[], error=f"Lỗi khi lấy đánh giá hữu ích: {e}")
 
 @app.route("/news")
 def news():
-    source = request.args.get("source", "nongnghiep")
+    source = request.args.get("source", "nongnghiep") # Mặc định là nongnghiep
     page = int(request.args.get("page", 1))
     articles = load_news(source=source, page=page)
-    if articles is None: # Als load_news None retourneert (bv. voor scrape_baomoi)
+    if articles is None: # Nếu load_news trả về None (ví dụ: scrape_baomoi chưa implement)
         articles = []
     return render_template("news.html", articles=articles, source=source, current_page=page)
 
@@ -270,7 +327,7 @@ def news_api():
 
 
 if __name__ == "__main__":
-    # Zorg ervoor dat de 'uploads' map bestaat bij het opstarten
+    # Đảm bảo thư mục 'uploads' tồn tại khi khởi động
     if not os.path.exists(app.config['UPLOAD_FOLDER']):
         os.makedirs(app.config['UPLOAD_FOLDER'])
     app.run(debug=True)
