@@ -1,1 +1,13 @@
 flask
+transformers
+torch
+scikit-learn
+pandas
+joblib
+nltk
+matplotlib
+requests
+beautifulsoup4
+evaluate
+datasets
+gdown
